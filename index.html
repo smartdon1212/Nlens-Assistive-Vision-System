@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>NLens Monitor</title>
+<style>
+/* NO external fonts — works fully offline in AP mode */
+:root{
+  --bg:#06090d;--sur:#0c1018;--sur2:#111720;--bdr:#1c2535;--bdr2:#253040;
+  --safe:#00e676;--warn:#ffc400;--danger:#ff1744;--acc:#00b4d8;
+  --txt:#cdd9e8;--dim:#6b7f96;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;background:var(--bg);color:var(--txt);
+  font-family:'Courier New',Courier,monospace;overflow-x:hidden;}
+body::after{content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent 0,transparent 3px,rgba(0,0,0,.06) 3px,rgba(0,0,0,.06) 4px);
+  pointer-events:none;z-index:999;}
+.shell{min-height:100vh;display:grid;grid-template-rows:auto auto 1fr auto;max-width:520px;margin:0 auto;}
+
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;background:var(--sur);border-bottom:1px solid var(--bdr);}
+.brand{display:flex;align-items:center;gap:12px;}
+.bp{width:9px;height:9px;border-radius:50%;background:var(--safe);
+  box-shadow:0 0 10px var(--safe);animation:blink 2.4s ease-in-out infinite;}
+.bname{font-size:20px;font-weight:900;letter-spacing:6px;color:#fff;}
+.bsub{font-size:9px;color:var(--dim);letter-spacing:2px;margin-top:2px;}
+.ctag{display:flex;align-items:center;gap:7px;padding:5px 12px;
+  border-radius:3px;border:1px solid var(--bdr2);font-size:10px;
+  letter-spacing:2px;transition:all .4s;}
+.ctag.live{border-color:var(--safe);color:var(--safe);box-shadow:0 0 10px rgba(0,230,118,.25);}
+.ctag.dead{border-color:var(--danger);color:var(--danger);animation:blink .9s linear infinite;}
+.ctag .dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+
+/* STATUS STRIP */
+.ss{padding:11px 20px;text-align:center;font-weight:700;font-size:11px;
+  letter-spacing:5px;transition:all .3s;}
+.ss.safe{background:rgba(0,230,118,.07);color:var(--safe);border-bottom:2px solid var(--safe);}
+.ss.caution{background:rgba(255,196,0,.08);color:var(--warn);border-bottom:2px solid var(--warn);}
+.ss.danger{background:rgba(255,23,68,.1);color:var(--danger);border-bottom:2px solid var(--danger);animation:dp .45s ease-in-out infinite;}
+@keyframes dp{50%{background:rgba(255,23,68,.22);}}
+
+/* MAIN */
+main{display:flex;flex-direction:column;align-items:center;gap:28px;padding:30px 20px 20px;}
+
+/* GAUGE */
+.gb{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.gsw{position:relative;width:300px;}
+.gsw svg{width:100%;display:block;}
+.gc{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;}
+.gnum{font-size:56px;font-weight:900;line-height:1;letter-spacing:-2px;transition:color .3s,text-shadow .3s;}
+.gunit{font-size:10px;letter-spacing:3px;color:var(--dim);margin-top:4px;}
+.glabels{display:flex;justify-content:space-between;width:300px;padding:0 8px;font-size:9px;color:var(--dim);letter-spacing:1px;}
+
+/* LEGEND */
+.legend{display:flex;gap:18px;justify-content:center;}
+.li{display:flex;align-items:center;gap:6px;font-size:9px;letter-spacing:2px;color:var(--dim);}
+.ld{width:8px;height:8px;border-radius:50%;}
+
+/* CARDS */
+.cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;width:100%;}
+.card{background:var(--sur);border:1px solid var(--bdr);border-radius:6px;
+  padding:16px 10px 14px;text-align:center;transition:border-color .3s,box-shadow .3s;}
+.card.as{border-color:var(--safe);box-shadow:0 0 14px rgba(0,230,118,.25);}
+.card.ad{border-color:var(--danger);box-shadow:0 0 14px rgba(255,23,68,.3);}
+.clabel{display:block;font-size:8px;letter-spacing:3px;color:var(--dim);margin-bottom:10px;}
+.cval{font-size:16px;font-weight:700;letter-spacing:1px;transition:color .3s;}
+.cval.on-s{color:var(--safe);text-shadow:0 0 12px rgba(0,230,118,.4);}
+.cval.on-d{color:var(--danger);text-shadow:0 0 12px rgba(255,23,68,.4);}
+.cval.off{color:var(--dim);}
+.cval.upt{color:var(--acc);font-size:13px;}
+
+/* FOOTER */
+footer{background:var(--sur);border-top:1px solid var(--bdr);padding:10px 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:9px;color:var(--dim);letter-spacing:1px;}
+.pw{display:flex;align-items:center;gap:7px;}
+.pr{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--acc);position:relative;}
+.pr::after{content:'';position:absolute;inset:-3px;border-radius:50%;
+  border:1.5px solid var(--acc);opacity:0;animation:ro 1.2s ease-out infinite;}
+@keyframes ro{0%{opacity:.8;transform:scale(.6);}100%{opacity:0;transform:scale(2);}}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* SETUP OVERLAY */
+.instr{position:fixed;inset:0;background:rgba(6,9,13,.95);display:flex;
+  align-items:center;justify-content:center;z-index:500;transition:opacity .5s;}
+.instr.hidden{opacity:0;pointer-events:none;}
+.ibox{border:1px solid var(--bdr2);background:var(--sur2);border-radius:8px;
+  padding:32px;max-width:320px;text-align:center;}
+.ibox h2{font-size:16px;letter-spacing:5px;margin-bottom:20px;color:#fff;}
+.step{display:flex;align-items:flex-start;gap:12px;text-align:left;
+  margin-bottom:14px;font-size:12px;line-height:1.6;color:var(--txt);}
+.snum{font-size:18px;font-weight:900;color:var(--acc);line-height:1;flex-shrink:0;}
+.ssid{color:var(--safe);letter-spacing:1px;}
+.ip{color:var(--acc);}
+.skip{margin-top:20px;padding:10px 28px;background:transparent;
+  border:1px solid var(--bdr2);border-radius:4px;color:var(--dim);
+  font-family:'Courier New',Courier,monospace;font-size:11px;letter-spacing:3px;
+  cursor:pointer;transition:all .2s;}
+.skip:hover{border-color:var(--acc);color:var(--acc);}
+</style>
+</head>
+<body>
+
+<!-- SETUP OVERLAY -->
+<div class="instr" id="instr">
+  <div class="ibox">
+    <h2>SETUP</h2>
+    <div class="step">
+      <span class="snum">1</span>
+      <div>Power on <strong>NLens</strong> and wait for the green LED to stay solid.</div>
+    </div>
+    <div class="step">
+      <span class="snum">2</span>
+      <div>Connect to WiFi:<br/>
+        <span class="ssid">MicroPython-d4c8d9</span><br/>
+        <small style="color:var(--dim)">No password needed</small>
+      </div>
+    </div>
+    <div class="step">
+      <span class="snum">3</span>
+      <div>Open your browser and visit:<br/>
+        <span class="ip">http://192.168.4.1</span>
+      </div>
+    </div>
+    <button class="skip" onclick="document.getElementById('instr').classList.add('hidden')">CONTINUE</button>
+  </div>
+</div>
+
+<!-- MAIN SHELL -->
+<div class="shell">
+  <header>
+    <div class="brand">
+      <div class="bp"></div>
+      <div>
+        <div class="bname">NLENS</div>
+        <div class="bsub">ASSISTIVE VISION DEVICE // V2.1</div>
+      </div>
+    </div>
+    <div class="ctag dead" id="ctag">
+      <div class="dot"></div>
+      <span id="clbl">NO SIGNAL</span>
+    </div>
+  </header>
+
+  <div class="ss safe" id="ss">◆ INITIALISING ◆</div>
+
+  <main>
+    <!-- GAUGE -->
+    <div class="gb">
+      <div class="gsw">
+        <svg viewBox="0 0 300 165" xmlns="http://www.w3.org/2000/svg">
+          <path d="M 30 155 A 120 120 0 0 1 270 155"
+                fill="none" stroke="#1a2535" stroke-width="12" stroke-linecap="round"/>
+          <path id="zD" fill="none" stroke="#ff1744" stroke-width="12" stroke-linecap="round" opacity="0.25"/>
+          <path id="zC" fill="none" stroke="#ffc400" stroke-width="12" stroke-linecap="round" opacity="0.25"/>
+          <path id="zS" fill="none" stroke="#00e676" stroke-width="12" stroke-linecap="round" opacity="0.15"/>
+          <path id="aF" fill="none" stroke="#00b4d8" stroke-width="12" stroke-linecap="round"/>
+          <g id="tks" stroke="#253040" stroke-width="1.5"></g>
+          <line id="ndl" x1="150" y1="155" x2="150" y2="50"
+                stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.85"/>
+          <circle cx="150" cy="155" r="6" fill="#0c1018" stroke="#fff" stroke-width="2"/>
+          <circle cx="150" cy="155" r="2" fill="#fff"/>
+        </svg>
+        <div class="gc">
+          <div class="gnum" id="gnum" style="color:var(--safe)">---</div>
+          <div class="gunit">CENTIMETRES</div>
+        </div>
+      </div>
+      <div class="glabels"><span>0</span><span>25</span><span>50</span><span>75</span><span>100+</span></div>
+      <div class="legend">
+        <div class="li"><div class="ld" style="background:var(--danger)"></div><span>DANGER &lt;10cm</span></div>
+        <div class="li"><div class="ld" style="background:var(--warn)"></div><span>CAUTION &lt;20cm</span></div>
+        <div class="li"><div class="ld" style="background:var(--safe)"></div><span>SAFE &ge;20cm</span></div>
+      </div>
+    </div>
+
+    <!-- CARDS -->
+    <div class="cards">
+      <div class="card" id="cvib">
+        <span class="clabel">VIBRATION</span>
+        <div class="cval off" id="vv">OFF</div>
+      </div>
+      <div class="card" id="cbuz">
+        <span class="clabel">BUZZER</span>
+        <div class="cval off" id="bv">OFF</div>
+      </div>
+      <div class="card">
+        <span class="clabel">UPTIME</span>
+        <div class="cval upt" id="uv">--:--:--</div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <span>192.168.4.1</span>
+    <div class="pw"><div class="pr"></div><span>POLL @ 500ms</span></div>
+    <span id="ls">LAST: ------</span>
+  </footer>
+</div>
+
+<script>
+const API  = "http://192.168.4.1/data";
+const POLL = 500;
+const CX=150,CY=155,R=120,GMAX=100;
+
+function d2a(cm){return Math.PI*(1-Math.min(Math.max(cm,0),GMAX)/GMAX);}
+function pt(a,r){return[CX+r*Math.cos(a),CY-r*Math.sin(a)];}
+function arc(a1,a2,r){
+  if(Math.abs(a1-a2)<.001)return"";
+  const[x1,y1]=pt(a1,r),[x2,y2]=pt(a2,r);
+  return`M${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 ${(a1-a2)>Math.PI?1:0} 0 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+}
+
+// Draw zones + ticks once on load
+(function init(){
+  document.getElementById("zD").setAttribute("d",arc(d2a(0), d2a(10),R));
+  document.getElementById("zC").setAttribute("d",arc(d2a(10),d2a(20),R));
+  document.getElementById("zS").setAttribute("d",arc(d2a(20),d2a(100),R));
+  const g=document.getElementById("tks");
+  [0,25,50,75,100].forEach(cm=>{
+    const a=d2a(cm);
+    const[ox,oy]=pt(a,R+8),[ix,iy]=pt(a,R-8);
+    const l=document.createElementNS("http://www.w3.org/2000/svg","line");
+    l.setAttribute("x1",ox.toFixed(1));l.setAttribute("y1",oy.toFixed(1));
+    l.setAttribute("x2",ix.toFixed(1));l.setAttribute("y2",iy.toFixed(1));
+    g.appendChild(l);
+  });
+})();
+
+const SC={safe:"#00e676",caution:"#ffc400",danger:"#ff1744"};
+const SM={safe:"◆  SAFE — PATH CLEAR  ◆",caution:"◆  CAUTION — OBSTACLE NEARBY  ◆",danger:"◆  DANGER — STOP IMMEDIATELY  ◆"};
+
+function updGauge(dist,st){
+  const col=SC[st]||SC.safe;
+  const fa=d2a(Math.min(dist,GMAX));
+  document.getElementById("aF").setAttribute("d",arc(Math.PI,fa,R));
+  document.getElementById("aF").setAttribute("stroke",col);
+  const[nx,ny]=pt(fa,R-22);
+  const nd=document.getElementById("ndl");
+  nd.setAttribute("x2",nx.toFixed(1));nd.setAttribute("y2",ny.toFixed(1));
+  nd.setAttribute("stroke",col);
+  const gn=document.getElementById("gnum");
+  gn.textContent=dist>=400?"400+":dist;
+  gn.style.color=col;
+  gn.style.textShadow="0 0 20px "+col+"88";
+}
+
+function updStatus(st){
+  const el=document.getElementById("ss");
+  el.className="ss "+st;
+  el.textContent=SM[st]||SM.safe;
+}
+
+function setCard(cid,vid,on,cls){
+  document.getElementById(vid).textContent=on?"ON":"OFF";
+  document.getElementById(vid).className="cval "+(on?cls:"off");
+  document.getElementById(cid).className="card "+(on?(cls==="on-d"?"ad":"as"):"");
+}
+
+function fmt(s){
+  return[Math.floor(s/3600),Math.floor((s%3600)/60),s%60]
+    .map(v=>String(v).padStart(2,"0")).join(":");
+}
+
+function hms(){
+  const d=new Date();
+  return[d.getHours(),d.getMinutes(),d.getSeconds()]
+    .map(v=>String(v).padStart(2,"0")).join(":");
+}
+
+let connected=false;
+function setConn(yes){
+  if(connected===yes)return;
+  connected=yes;
+  document.getElementById("ctag").className="ctag "+(yes?"live":"dead");
+  document.getElementById("clbl").textContent=yes?"CONNECTED":"NO SIGNAL";
+  if(yes)document.getElementById("instr").classList.add("hidden");
+}
+
+async function poll(){
+  try{
+    const res=await fetch(API,{cache:"no-store",signal:AbortSignal.timeout(1200)});
+    const d=await res.json();
+    const st=d.status||(d.distance<10?"danger":d.distance<20?"caution":"safe");
+    updGauge(d.distance,st);
+    updStatus(st);
+    setCard("cvib","vv",!!d.vibration,!!d.buzzer?"on-d":"on-s");
+    setCard("cbuz","bv",!!d.buzzer,"on-d");
+    if(d.uptime!==undefined)document.getElementById("uv").textContent=fmt(d.uptime);
+    document.getElementById("ls").textContent="LAST: "+hms();
+    setConn(true);
+  }catch(e){
+    setConn(false);
+    const gn=document.getElementById("gnum");
+    gn.textContent="---";gn.style.color="var(--dim)";gn.style.textShadow="";
+  }
+}
+
+poll();
+setInterval(poll,POLL);
+</script>
+</body>
+</html>
