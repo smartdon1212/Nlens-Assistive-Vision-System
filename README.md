@@ -55,7 +55,7 @@ Web dashboard implementation
 
 A demonstration of the system in operation is available:
 
-👉 [https://www.youtube.com/shorts/XXIS4dwjgeo]
+👉 [https://youtube.com/shorts/XXIS4dwjgeo?si=ramxIZ43642Muq5j]
 
 # 🚀 Development Roadmap
 
